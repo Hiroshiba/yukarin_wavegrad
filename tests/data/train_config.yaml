@@ -1,0 +1,21 @@
+dataset:
+  input_glob: "/path/to/input-npy/*.npy"
+  target_glob: "/path/to/target-npy/*.npy"
+  num_test: 100
+  seed: 0
+
+network: {}
+
+model: {}
+
+train:
+  batchsize: 100
+  log_iteration: 1000
+  snapshot_iteration: 100000
+  stop_iteration: 100000
+  optimizer:
+    name: "adam"
+    lr: 0.001
+
+project:
+  name: null

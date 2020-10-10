@@ -1,1 +1,1 @@
-# yukarin_wavegrad
+# hiho-pytorch-base
