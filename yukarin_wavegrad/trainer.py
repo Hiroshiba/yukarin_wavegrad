@@ -6,14 +6,16 @@ from typing import Any, Dict
 import torch
 import yaml
 from pytorch_trainer.iterators import MultiprocessIterator
-from pytorch_trainer.training import extensions, Trainer
+from pytorch_trainer.training import Trainer, extensions
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 from torch import optim
 
 from yukarin_wavegrad.config import Config
 from yukarin_wavegrad.dataset import create_dataset
-from yukarin_wavegrad.model import Model, create_network
+from yukarin_wavegrad.model import Model
+from yukarin_wavegrad.network.predictor import create_predictor
+from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
 from yukarin_wavegrad.utility.tensorboard_extension import TensorboardReport
 
 
@@ -30,11 +32,10 @@ def create_trainer(
         yaml.safe_dump(config.to_dict(), f)
 
     # model
-    networks = create_network(config.network)
-    model = Model(model_config=config.model, networks=networks)
-
     device = torch.device("cuda")
-    model.to(device)
+    predictor = create_predictor(config.network).to(device)
+    model = Model(model_config=config.model, predictor=predictor)
+    init_orthogonal(model)
 
     # dataset
     def _create_iterator(dataset, for_train: bool):
@@ -50,7 +51,7 @@ def create_trainer(
     datasets = create_dataset(config.dataset)
     train_iter = _create_iterator(datasets["train"], for_train=True)
     test_iter = _create_iterator(datasets["test"], for_train=False)
-    train_test_iter = _create_iterator(datasets["train_test"], for_train=False)
+    test_eval_iter = _create_iterator(datasets["test_eval"], for_train=False)
 
     warnings.simplefilter("error", MultiprocessIterator.TimeoutWarning)
 
@@ -83,14 +84,28 @@ def create_trainer(
     )
 
     trainer = Trainer(updater, stop_trigger=trigger_stop, out=output)
+    writer = SummaryWriter(Path(output))
+
+    # # error at randint
+    # sample_data = datasets["train"][0]
+    # writer.add_graph(
+    #     model,
+    #     input_to_model=(
+    #         sample_data["wave"].unsqueeze(0).to(device),
+    #         sample_data["local"].unsqueeze(0).to(device),
+    #         sample_data["speaker_id"].unsqueeze(0).to(device)
+    #         if predictor.with_speaker
+    #         else None,
+    #     ),
+    # )
 
     ext = extensions.Evaluator(test_iter, model, device=device)
     trainer.extend(ext, name="test", trigger=trigger_log)
-    ext = extensions.Evaluator(train_test_iter, model, device=device)
+    ext = extensions.Evaluator(test_eval_iter, model, device=device)
     trainer.extend(ext, name="train", trigger=trigger_log)
 
     ext = extensions.snapshot_object(
-        networks.predictor, filename="predictor_{.updater.iteration}.pth"
+        predictor, filename="predictor_{.updater.iteration}.pth"
     )
     trainer.extend(ext, trigger=trigger_snapshot)
 
@@ -101,7 +116,7 @@ def create_trainer(
         trigger=trigger_log,
     )
 
-    ext = TensorboardReport(writer=SummaryWriter(Path(output)))
+    ext = TensorboardReport(writer=writer)
     trainer.extend(ext, trigger=trigger_log)
 
     (output / "struct.txt").write_text(repr(model))

@@ -1,7 +1,10 @@
 numpy
-torch<1.6.0
+torch==1.5.0
 tqdm
+retry
 pytest
 pyyaml
 tensorboardX
+tensorboard
 git+https://github.com/Hiroshiba/pytorch-trainer@1.2.0
+git+https://github.com/Hiroshiba/acoustic_feature_extractor@7beb1ceb7244a997865778c3a7c730e5fc0cbe02
