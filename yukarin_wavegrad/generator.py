@@ -37,13 +37,21 @@ class Generator(object):
     def generate(
         self,
         local: Union[numpy.ndarray, torch.Tensor],
+        speaker_id: Union[numpy.ndarray, torch.Tensor] = None,
     ):
         if isinstance(input, numpy.ndarray):
             local = torch.from_numpy(local)
         local = local.to(self.device)
 
+        if speaker_id is not None:
+            if isinstance(speaker_id, numpy.ndarray):
+                speaker_id = torch.from_numpy(speaker_id)
+            speaker_id = speaker_id.to(self.device)
+
         with torch.no_grad():
-            output = self.predictor.inference_forward(local)
+            output = self.predictor.inference_forward(
+                local=local, speaker_id=speaker_id
+            )
         return [
             Wave(wave=wave, sampling_rate=self.sampling_rate)
             for wave in output.cpu().numpy()

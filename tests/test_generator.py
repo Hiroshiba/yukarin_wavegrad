@@ -6,7 +6,6 @@ from yukarin_wavegrad.config import NoiseScheduleModelConfig
 from yukarin_wavegrad.generator import Generator
 
 from tests.utility import (
-    create_model_config,
     create_network_config,
     create_sign_wave_dataset,
     get_test_model_path,

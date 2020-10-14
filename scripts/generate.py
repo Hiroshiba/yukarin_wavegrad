@@ -1,16 +1,16 @@
 import argparse
 import re
-from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
 import yaml
+from more_itertools import chunked
+from pytorch_trainer.dataset.convert import concat_examples
 from tqdm import tqdm
-
-from yukarin_wavegrad.config import Config
-from yukarin_wavegrad.dataset import create_dataset
-from yukarin_wavegrad.generator import Generator
 from utility.save_arguments import save_arguments
+from yukarin_wavegrad.config import Config, NoiseScheduleModelConfig
+from yukarin_wavegrad.dataset import SpeakerWavesDataset, WavesDataset, create_dataset
+from yukarin_wavegrad.generator import Generator
 
 
 def _extract_number(f):
@@ -37,6 +37,9 @@ def generate(
     model_iteration: Optional[int],
     model_config: Optional[Path],
     output_dir: Path,
+    batch_size: int,
+    num_test: int,
+    time_second: float,
     use_gpu: bool,
 ):
     if model_config is None:
@@ -52,16 +55,37 @@ def generate(
         iteration=model_iteration,
     )
     generator = Generator(
-        config=config,
+        network_config=config.network,
+        noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
         predictor=model_path,
+        sampling_rate=config.dataset.sampling_rate,
         use_gpu=use_gpu,
     )
 
-    dataset = create_dataset(config.dataset)["train"]
-    features_dict = defaultdict(list)
-    for data in tqdm(dataset, desc="generate"):
-        target = data["target"]
-        output = generator.generate(data["input"])
+    config.dataset.sampling_length = int(config.dataset.sampling_rate * time_second)
+    dataset = create_dataset(config.dataset)["test"]
+
+    if isinstance(dataset, SpeakerWavesDataset):
+        local_paths = [
+            input.path_local for input in dataset.wave_dataset.inputs[:num_test]
+        ]
+    elif isinstance(dataset, WavesDataset):
+        local_paths = [input.path_local for input in dataset.inputs[:num_test]]
+    else:
+        raise Exception()
+
+    for data, local_path in tqdm(
+        zip(chunked(dataset, batch_size), chunked(local_paths, batch_size)),
+        desc="generate",
+    ):
+        data = concat_examples(data)
+        output = generator.generate(
+            local=data["local"],
+            speaker_id=data["speaker_id"] if "speaker_id" in data else None,
+        )
+
+        for wave, p in zip(output, local_path):
+            wave.save(output_dir / (p.stem + ".wav"))
 
 
 if __name__ == "__main__":
@@ -70,5 +94,8 @@ if __name__ == "__main__":
     parser.add_argument("--model_iteration", type=int)
     parser.add_argument("--model_config", type=Path)
     parser.add_argument("--output_dir", required=True, type=Path)
+    parser.add_argument("--batch_size", type=int, default=10)
+    parser.add_argument("--num_test", type=int, default=10)
+    parser.add_argument("--time_second", type=float, default=1)
     parser.add_argument("--use_gpu", action="store_true")
     generate(**vars(parser.parse_args()))

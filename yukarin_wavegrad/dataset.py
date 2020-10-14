@@ -226,6 +226,6 @@ def create_dataset(config: DatasetConfig):
 
     return dict(
         train=make_dataset(trains),
-        test=make_dataset(tests, for_evaluate=True),
-        test_eval=make_dataset(tests, for_evaluate=True),
+        test=make_dataset(tests),
+        eval=make_dataset(tests, for_evaluate=True),
     )

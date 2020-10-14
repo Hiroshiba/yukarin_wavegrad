@@ -21,18 +21,17 @@ class Predictor(nn.Module):
         self.scale = scale
         self.speaker_size = speaker_size
 
+        self.speaker_embedder: Optional[nn.Embedding] = None
         if self.with_speaker:
             self.speaker_embedder = nn.Embedding(
                 num_embeddings=speaker_size,
                 embedding_dim=speaker_embedding_size,
             )
-        else:
-            self.speaker_embedder = None
 
-        self.beta: Tensor = None  # (N, )
-        self.alpha: Tensor = None  # (N, )
-        self.discrete_noise_level: Tensor = None  # (N+1, )
-        self.max_iteration: int = None
+        self.beta: Optional[Tensor] = None  # (N, )
+        self.alpha: Optional[Tensor] = None  # (N, )
+        self.discrete_noise_level: Optional[Tensor] = None  # (N+1, )
+        self.max_iteration: Optional[int] = None
 
     @property
     def with_speaker(self):
@@ -53,10 +52,10 @@ class Predictor(nn.Module):
         beta = numpy.asarray(noise_schedule, dtype=numpy.float64)
         alpha = 1 - beta
         discrete_noise_level = numpy.r_[1, numpy.sqrt(numpy.cumprod(alpha))]
-        self.beta = torch.FloatTensor(beta).to(self.device)
-        self.alpha = torch.FloatTensor(alpha).to(self.device)
-        self.discrete_noise_level = torch.FloatTensor(discrete_noise_level).to(
-            self.device
+        self.beta = torch.from_numpy(beta).float().to(self.device)
+        self.alpha = torch.from_numpy(alpha).float().to(self.device)
+        self.discrete_noise_level = (
+            torch.from_numpy(discrete_noise_level).float().to(self.device)
         )
         self.max_iteration = len(noise_schedule)
 
