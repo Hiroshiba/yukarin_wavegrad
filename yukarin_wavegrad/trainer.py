@@ -11,8 +11,10 @@ from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 from torch import optim
 
-from yukarin_wavegrad.config import Config
+from yukarin_wavegrad.config import Config, NoiseScheduleModelConfig
 from yukarin_wavegrad.dataset import create_dataset
+from yukarin_wavegrad.evaluator import GenerateEvaluator
+from yukarin_wavegrad.generator import Generator
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
 from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
@@ -33,15 +35,19 @@ def create_trainer(
 
     # model
     device = torch.device("cuda")
-    predictor = create_predictor(config.network).to(device)
-    model = Model(model_config=config.model, predictor=predictor)
+    predictor = create_predictor(config.network)
+    model = Model(model_config=config.model, predictor=predictor).to(device)
     init_orthogonal(model)
 
     # dataset
-    def _create_iterator(dataset, for_train: bool):
+    def _create_iterator(dataset, for_train: bool, for_eval: bool):
+        if not for_eval or config.train.eval_batchsize is None:
+            batchsize = config.train.batchsize
+        else:
+            batchsize = config.train.eval_batchsize
         return MultiprocessIterator(
             dataset,
-            config.train.batchsize,
+            batchsize,
             repeat=for_train,
             shuffle=for_train,
             n_processes=config.train.num_processes,
@@ -49,9 +55,9 @@ def create_trainer(
         )
 
     datasets = create_dataset(config.dataset)
-    train_iter = _create_iterator(datasets["train"], for_train=True)
-    test_iter = _create_iterator(datasets["test"], for_train=False)
-    test_eval_iter = _create_iterator(datasets["test_eval"], for_train=False)
+    train_iter = _create_iterator(datasets["train"], for_train=True, for_eval=False)
+    test_iter = _create_iterator(datasets["test"], for_train=False, for_eval=False)
+    eval_iter = _create_iterator(datasets["eval"], for_train=False, for_eval=True)
 
     warnings.simplefilter("error", MultiprocessIterator.TimeoutWarning)
 
@@ -101,8 +107,17 @@ def create_trainer(
 
     ext = extensions.Evaluator(test_iter, model, device=device)
     trainer.extend(ext, name="test", trigger=trigger_log)
-    ext = extensions.Evaluator(test_eval_iter, model, device=device)
-    trainer.extend(ext, name="train", trigger=trigger_log)
+
+    generator = Generator(
+        network_config=config.network,
+        noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
+        predictor=predictor,
+        sampling_rate=config.dataset.sampling_rate,
+        use_gpu=True,
+    )
+    generate_evaluator = GenerateEvaluator(generator=generator)
+    ext = extensions.Evaluator(eval_iter, generate_evaluator, device=device)
+    trainer.extend(ext, name="eval", trigger=trigger_snapshot)
 
     ext = extensions.snapshot_object(
         predictor, filename="predictor_{.updater.iteration}.pth"

@@ -34,6 +34,7 @@ model:
 
 train:
   batchsize: 32
+  eval_batchsize: 4
   log_iteration: 1000
   snapshot_iteration: 100000
   stop_iteration: 1000000

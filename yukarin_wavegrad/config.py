@@ -60,6 +60,7 @@ class ModelConfig:
 @dataclass
 class TrainConfig:
     batchsize: int
+    eval_batchsize: Optional[int]
     log_iteration: int
     snapshot_iteration: int
     stop_iteration: int

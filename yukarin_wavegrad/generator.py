@@ -6,6 +6,7 @@ import torch
 from acoustic_feature_extractor.data.wave import Wave
 
 from yukarin_wavegrad.config import NetworkConfig, NoiseScheduleModelConfig
+from yukarin_wavegrad.model import NoiseScheduler
 from yukarin_wavegrad.network.predictor import Predictor, create_predictor
 
 
@@ -20,6 +21,7 @@ class Generator(object):
     ):
         self.sampling_rate = sampling_rate
         self.device = torch.device("cuda") if use_gpu else torch.device("cpu")
+        self.scale = numpy.prod(network_config.scales, dtype=int)
 
         if isinstance(predictor, Path):
             state_dict = torch.load(predictor)
@@ -27,12 +29,47 @@ class Generator(object):
             predictor.load_state_dict(state_dict)
         self.predictor = predictor.eval().to(self.device)
 
-        noise_schedule = predictor.generate_noise_schedule(
-            start=noise_schedule_config.start,
-            stop=noise_schedule_config.stop,
-            num=noise_schedule_config.num,
-        )
-        predictor.set_noise_schedule(noise_schedule)
+        self.noise_scheduler = NoiseScheduler(
+            NoiseScheduler.generate_noise_schedule(
+                start=noise_schedule_config.start,
+                stop=noise_schedule_config.stop,
+                num=noise_schedule_config.num,
+            )
+        ).to(self.device)
+
+    def inference_forward(
+        self,
+        local: torch.Tensor,
+        speaker_id: torch.Tensor = None,
+    ):
+        batsh_size = local.shape[0]
+        length = local.shape[2] * self.scale
+
+        wave = self.predictor.generate_noise(batsh_size, length)
+        for i in reversed(range(self.noise_scheduler.max_iteration)):
+            beta = self.noise_scheduler.beta[i].expand(batsh_size).unsqueeze(1)
+            alpha = self.noise_scheduler.alpha[i].expand(batsh_size).unsqueeze(1)
+            noise_level = (
+                self.noise_scheduler.discrete_noise_level[i + 1]
+                .expand(batsh_size)
+                .unsqueeze(1)
+            )
+
+            diff_wave = self.predictor(
+                wave=wave, local=local, noise_level=noise_level, speaker_id=speaker_id
+            )
+            wave = (
+                wave - (beta / torch.sqrt(1 - noise_level ** 2) * diff_wave)
+            ) / torch.sqrt(alpha)
+
+            if i > 0:
+                noise = self.predictor.generate_noise(batsh_size, length)
+                before_noise_level = self.noise_scheduler.discrete_noise_level[i]
+                wave += (
+                    torch.sqrt(beta * (1 - before_noise_level) / (1 - noise_level))
+                    * noise
+                )
+        return wave
 
     def generate(
         self,
@@ -49,9 +86,7 @@ class Generator(object):
             speaker_id = speaker_id.to(self.device)
 
         with torch.no_grad():
-            output = self.predictor.inference_forward(
-                local=local, speaker_id=speaker_id
-            )
+            output = self.inference_forward(local=local, speaker_id=speaker_id)
         return [
             Wave(wave=wave, sampling_rate=self.sampling_rate)
             for wave in output.cpu().numpy()

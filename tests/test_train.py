@@ -18,15 +18,15 @@ def test_train():
     else:
         device = torch.device("cpu")
 
-    predictor = create_predictor(create_network_config()).to(device)
-    model = Model(model_config=create_model_config(), predictor=predictor)
+    predictor = create_predictor(create_network_config())
+    model = Model(model_config=create_model_config(), predictor=predictor).to(device)
     dataset = create_sign_wave_dataset()
 
     def first_hook(o):
         assert o["main/loss"].data > 0.5
 
     def last_hook(o):
-        assert o["main/loss"].data < 0.3
+        assert o["main/loss"].data < 0.5
 
     iteration = 1000
     train_support(
@@ -37,7 +37,7 @@ def test_train():
         iteration=iteration,
         first_hook=first_hook,
         last_hook=last_hook,
-        learning_rate=3e-5,
+        learning_rate=2e-4,
     )
 
     # save model
