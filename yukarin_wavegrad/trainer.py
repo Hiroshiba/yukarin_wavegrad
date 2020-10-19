@@ -82,6 +82,7 @@ def create_trainer(
 
     # trainer
     trigger_log = (config.train.log_iteration, "iteration")
+    trigger_eval = (config.train.eval_iteration, "iteration")
     trigger_snapshot = (config.train.snapshot_iteration, "iteration")
     trigger_stop = (
         (config.train.stop_iteration, "iteration")
@@ -117,7 +118,7 @@ def create_trainer(
     )
     generate_evaluator = GenerateEvaluator(generator=generator)
     ext = extensions.Evaluator(eval_iter, generate_evaluator, device=device)
-    trainer.extend(ext, name="eval", trigger=trigger_snapshot)
+    trainer.extend(ext, name="eval", trigger=trigger_eval)
 
     ext = extensions.snapshot_object(
         predictor, filename="predictor_{.updater.iteration}.pth"

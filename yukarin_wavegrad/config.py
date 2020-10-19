@@ -23,6 +23,12 @@ class DatasetConfig:
 
 
 @dataclass
+class EncodingNetworkConfig:
+    hidden_size: int
+    layer_num: int
+
+
+@dataclass
 class UpsamplingNetworkConfig:
     prev_hidden_size: int
     large_block_num: int
@@ -41,6 +47,7 @@ class NetworkConfig:
     scales: List[int]
     speaker_size: int
     speaker_embedding_size: int
+    encoding: EncodingNetworkConfig
     upsampling: UpsamplingNetworkConfig
     downsampling: DownsamplingNetworkConfig
 
@@ -62,6 +69,7 @@ class TrainConfig:
     batchsize: int
     eval_batchsize: Optional[int]
     log_iteration: int
+    eval_iteration: int
     snapshot_iteration: int
     stop_iteration: int
     num_processes: Optional[int] = None
@@ -100,4 +108,5 @@ class Config:
 
 
 def backward_compatible(d: Dict[str, Any]):
-    pass
+    if "encoding" not in d["network"]:
+        d["network"]["encodinge"] = {"hidden_size": 0, "layer_num": 0}
