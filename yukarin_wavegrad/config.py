@@ -73,11 +73,7 @@ class TrainConfig:
     snapshot_iteration: int
     stop_iteration: int
     num_processes: Optional[int] = None
-    optimizer: Dict[str, Any] = field(
-        default_factory=dict(
-            name="Adam",
-        )
-    )
+    optimizer: Dict[str, Any] = field(default_factory=dict(name="Adam"))
 
 
 @dataclass
@@ -108,5 +104,8 @@ class Config:
 
 
 def backward_compatible(d: Dict[str, Any]):
+    if "eval_iteration" not in d["train"]:
+        d["train"]["eval_iteration"] = d["train"]["snapshot_iteration"]
+
     if "encoding" not in d["network"]:
-        d["network"]["encodinge"] = {"hidden_size": 0, "layer_num": 0}
+        d["network"]["encoding"] = {"hidden_size": 0, "layer_num": 0}
