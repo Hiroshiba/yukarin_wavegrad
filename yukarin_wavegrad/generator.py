@@ -40,6 +40,7 @@ class Generator(object):
     def inference_forward(
         self,
         local: torch.Tensor,
+        local_padding_length: int = 0,
         speaker_id: torch.Tensor = None,
     ):
         batsh_size = local.shape[0]
@@ -56,7 +57,11 @@ class Generator(object):
             )
 
             diff_wave = self.predictor(
-                wave=wave, local=local, noise_level=noise_level, speaker_id=speaker_id
+                wave=wave,
+                local=local,
+                local_padding_length=local_padding_length,
+                noise_level=noise_level,
+                speaker_id=speaker_id,
             )
             wave = (
                 wave - (beta / torch.sqrt(1 - noise_level ** 2) * diff_wave)
@@ -74,6 +79,7 @@ class Generator(object):
     def generate(
         self,
         local: Union[numpy.ndarray, torch.Tensor],
+        local_padding_length: int = 0,
         speaker_id: Union[numpy.ndarray, torch.Tensor] = None,
     ):
         if isinstance(input, numpy.ndarray):
@@ -86,7 +92,11 @@ class Generator(object):
             speaker_id = speaker_id.to(self.device)
 
         with torch.no_grad():
-            output = self.inference_forward(local=local, speaker_id=speaker_id)
+            output = self.inference_forward(
+                local=local,
+                local_padding_length=local_padding_length,
+                speaker_id=speaker_id,
+            )
         return [
             Wave(wave=wave, sampling_rate=self.sampling_rate)
             for wave in output.cpu().numpy()

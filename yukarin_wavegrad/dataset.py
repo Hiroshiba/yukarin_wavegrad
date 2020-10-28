@@ -38,9 +38,11 @@ class BaseWaveDataset(Dataset):
     def __init__(
         self,
         sampling_length: int,
+        local_padding_length: int,
         min_not_silence_length: int,
-    ) -> None:
+    ):
         self.sampling_length = sampling_length
+        self.local_padding_length = local_padding_length
         self.min_not_silence_length = min_not_silence_length
 
     @staticmethod
@@ -49,7 +51,9 @@ class BaseWaveDataset(Dataset):
         wave_data: Wave,
         silence_data: SamplingData,
         local_data: SamplingData,
+        local_padding_length: int,
         min_not_silence_length: int,
+        padding_value=0,
     ):
         """
         :return:
@@ -67,6 +71,9 @@ class BaseWaveDataset(Dataset):
         assert (
             abs(length - len(wave_data.wave)) < l_scale * 4
         ), f"{abs(length - len(wave_data.wave))} {l_scale}"
+
+        assert local_padding_length % l_scale == 0
+        l_pad = local_padding_length // l_scale
 
         l_length = length // l_scale
         l_sl = sl // l_scale
@@ -87,11 +94,30 @@ class BaseWaveDataset(Dataset):
         wave = wave_data.wave[offset : offset + sl]
 
         # local
-        local = local_data.array[l_offset : l_offset + l_sl].T  # (C, T)
+        l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
+        if l_start < 0 or l_end > l_length:
+            shape = list(local_data.array.shape)
+            shape[0] = l_sl + l_pad * 2
+            local = (
+                numpy.ones(shape=shape, dtype=local_data.array.dtype) * padding_value
+            )
+            if l_start < 0:
+                p_start = -l_start
+                l_start = 0
+            else:
+                p_start = 0
+            if l_end > l_length:
+                p_end = l_sl + l_pad * 2 - (l_end - l_length)
+                l_end = l_length
+            else:
+                p_end = l_sl + l_pad * 2
+            local[p_start:p_end] = local_data.array[l_start:l_end]
+        else:
+            local = local_data.array[l_start:l_end]
 
         return dict(
             wave=wave,
-            local=local,
+            local=local.T,  # (C, T)
         )
 
     def make_input(
@@ -105,6 +131,7 @@ class BaseWaveDataset(Dataset):
             wave_data=wave_data,
             silence_data=silence_data,
             local_data=local_data,
+            local_padding_length=self.local_padding_length,
             min_not_silence_length=self.min_not_silence_length,
         )
 
@@ -114,10 +141,12 @@ class WavesDataset(BaseWaveDataset):
         self,
         inputs: List[Union[Input, LazyInput]],
         sampling_length: int,
+        local_padding_length: int,
         min_not_silence_length: int,
     ):
         super().__init__(
             sampling_length=sampling_length,
+            local_padding_length=local_padding_length,
             min_not_silence_length=min_not_silence_length,
         )
         self.inputs = inputs
@@ -205,12 +234,17 @@ def create_dataset(config: DatasetConfig):
 
         if not for_evaluate:
             sampling_length = config.sampling_length
+            local_padding_length = config.local_padding_length
         else:
             sampling_length = int(config.evaluate_time_second * config.sampling_rate)
+            local_padding_length = int(
+                config.evaluate_local_padding_time_second * config.sampling_rate
+            )
 
         dataset = WavesDataset(
             inputs=inputs,
             sampling_length=sampling_length,
+            local_padding_length=local_padding_length,
             min_not_silence_length=config.min_not_silence_length,
         )
 

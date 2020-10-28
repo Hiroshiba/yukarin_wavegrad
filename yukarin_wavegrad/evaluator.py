@@ -54,9 +54,10 @@ def calc_mcd(
 
 
 class GenerateEvaluator(nn.Module):
-    def __init__(self, generator: Generator):
+    def __init__(self, generator: Generator, local_padding_time_length: float):
         super().__init__()
         self.generator = generator
+        self.local_padding_time_length = local_padding_time_length
 
     def __call__(
         self,
@@ -66,8 +67,13 @@ class GenerateEvaluator(nn.Module):
     ):
         batch_size = len(wave)
 
+        local_padding_length = int(
+            self.generator.sampling_rate * self.local_padding_time_length
+        )
+
         output = self.generator.generate(
             local=local,
+            local_padding_length=local_padding_length,
             speaker_id=speaker_id,
         )
 

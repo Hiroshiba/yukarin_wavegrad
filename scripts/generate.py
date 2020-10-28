@@ -81,6 +81,10 @@ def generate(
         data = concat_examples(data)
         output = generator.generate(
             local=data["local"],
+            local_padding_length=(
+                config.dataset.evaluate_local_padding_time_second
+                * config.dataset.sampling_rate
+            ),
             speaker_id=data["speaker_id"] if "speaker_id" in data else None,
         )
 

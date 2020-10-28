@@ -12,6 +12,7 @@ class DatasetConfig:
     input_wave_glob: str
     input_silence_glob: str
     input_local_glob: str
+    local_padding_length: int
     min_not_silence_length: int
     speaker_dict_path: Optional[str]
     speaker_size: Optional[int]
@@ -20,6 +21,7 @@ class DatasetConfig:
     num_test: int
     evaluate_times: int
     evaluate_time_second: float
+    evaluate_local_padding_time_second: float
 
 
 @dataclass
@@ -109,3 +111,9 @@ def backward_compatible(d: Dict[str, Any]):
 
     if "encoding" not in d["network"]:
         d["network"]["encoding"] = {"hidden_size": 0, "layer_num": 0}
+
+    if "local_padding_length" not in d["dataset"]:
+        d["dataset"]["local_padding_length"] = 0
+
+    if "evaluate_local_padding_time_second" not in d["dataset"]:
+        d["dataset"]["evaluate_local_padding_time_second"] = 0

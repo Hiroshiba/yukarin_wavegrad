@@ -45,10 +45,16 @@ class NoiseScheduler(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, model_config: ModelConfig, predictor: Predictor):
+    def __init__(
+        self,
+        model_config: ModelConfig,
+        predictor: Predictor,
+        local_padding_length: int,
+    ):
         super().__init__()
         self.model_config = model_config
         self.predictor = predictor
+        self.local_padding_length = local_padding_length
 
         self.l1_loss = nn.L1Loss()
 
@@ -75,6 +81,7 @@ class Model(nn.Module):
         output = self.predictor(
             wave=noised_wave,
             local=local,
+            local_padding_length=self.local_padding_length,
             noise_level=noise_level,
             speaker_id=speaker_id,
         )

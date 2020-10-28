@@ -36,8 +36,13 @@ def create_trainer(
     # model
     device = torch.device("cuda")
     predictor = create_predictor(config.network)
-    model = Model(model_config=config.model, predictor=predictor).to(device)
+    model = Model(
+        model_config=config.model,
+        predictor=predictor,
+        local_padding_length=config.dataset.local_padding_length,
+    )
     init_orthogonal(model)
+    model.to(device)
 
     # dataset
     def _create_iterator(dataset, for_train: bool, for_eval: bool):
@@ -116,7 +121,10 @@ def create_trainer(
         sampling_rate=config.dataset.sampling_rate,
         use_gpu=True,
     )
-    generate_evaluator = GenerateEvaluator(generator=generator)
+    generate_evaluator = GenerateEvaluator(
+        generator=generator,
+        local_padding_time_length=config.dataset.evaluate_local_padding_time_second,
+    )
     ext = extensions.Evaluator(eval_iter, generate_evaluator, device=device)
     trainer.extend(ext, name="eval", trigger=trigger_eval)
 

@@ -13,6 +13,7 @@ from torch.optim import Adam
 from torch.utils.data import Dataset
 from yukarin_wavegrad.config import (
     DownsamplingNetworkConfig,
+    EncodingNetworkConfig,
     ModelConfig,
     NetworkConfig,
     NoiseScheduleModelConfig,
@@ -42,6 +43,10 @@ def create_network_config(
         scales=scales,
         speaker_size=speaker_size,
         speaker_embedding_size=4 if speaker_size > 0 else 0,
+        encoding=EncodingNetworkConfig(
+            hidden_size=0,
+            layer_num=0,
+        ),
         upsampling=UpsamplingNetworkConfig(
             prev_hidden_size=128,
             large_block_num=1,
@@ -67,9 +72,10 @@ class SignWaveDataset(BaseWaveDataset):
         sampling_rate: int,
         local_scale: int,
         frequency_range: Tuple[float, float],
-    ) -> None:
+    ):
         super().__init__(
             sampling_length=sampling_length,
+            local_padding_length=0,
             min_not_silence_length=0,
         )
         self.sampling_rate = sampling_rate

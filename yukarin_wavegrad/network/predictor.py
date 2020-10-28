@@ -1,5 +1,6 @@
 from typing import Optional
 
+import numpy
 import torch
 from torch import Tensor, nn
 from yukarin_wavegrad.config import NetworkConfig
@@ -9,12 +10,14 @@ from yukarin_wavegrad.network.wave_grad import WaveGrad
 class Predictor(nn.Module):
     def __init__(
         self,
+        local_scale: int,
         speaker_size: int,
         speaker_embedding_size: int,
         encoder: Optional[nn.RNNBase],
         wave_grad: WaveGrad,
     ):
         super().__init__()
+        self.local_scale = local_scale
 
         self.speaker_embedder: Optional[nn.Embedding] = None
         if speaker_size > 0:
@@ -45,6 +48,7 @@ class Predictor(nn.Module):
         self,
         wave: Tensor,
         local: Tensor,
+        local_padding_length: int,
         noise_level: Tensor,
         speaker_id: Tensor = None,
     ):
@@ -62,6 +66,10 @@ class Predictor(nn.Module):
             encoded = encoded.transpose(1, 2)
         else:
             encoded = condition
+
+        if local_padding_length > 0:
+            l_pad = local_padding_length // self.local_scale
+            encoded = encoded[:, :, l_pad:-l_pad]
 
         return self.wave_grad(wave=wave, local=encoded, noise_level=noise_level)
 
@@ -83,6 +91,7 @@ def create_predictor(config: NetworkConfig):
         )
 
     return Predictor(
+        local_scale=numpy.prod(config.scales),
         speaker_size=config.speaker_size,
         speaker_embedding_size=config.speaker_embedding_size,
         encoder=encoder,

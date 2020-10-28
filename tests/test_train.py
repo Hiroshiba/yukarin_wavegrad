@@ -2,6 +2,7 @@ import torch
 from retry import retry
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
+from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
 
 from tests.utility import (
     create_model_config,
@@ -19,7 +20,14 @@ def test_train():
         device = torch.device("cpu")
 
     predictor = create_predictor(create_network_config())
-    model = Model(model_config=create_model_config(), predictor=predictor).to(device)
+    model = Model(
+        model_config=create_model_config(),
+        predictor=predictor,
+        local_padding_length=0,
+    )
+    init_orthogonal(model)
+    model.to(device)
+
     dataset = create_sign_wave_dataset()
 
     def first_hook(o):
@@ -28,7 +36,7 @@ def test_train():
     def last_hook(o):
         assert o["main/loss"].data < 0.5
 
-    iteration = 1000
+    iteration = 500
     train_support(
         batch_size=16,
         device=device,
