@@ -44,7 +44,7 @@ class Generator(object):
         speaker_id: torch.Tensor = None,
     ):
         batsh_size = local.shape[0]
-        length = local.shape[2] * self.scale
+        length = local.shape[2] * self.scale - local_padding_length * 2
 
         wave = self.predictor.generate_noise(batsh_size, length)
         for i in reversed(range(self.noise_scheduler.max_iteration)):

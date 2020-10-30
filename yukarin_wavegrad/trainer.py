@@ -123,7 +123,7 @@ def create_trainer(
     )
     generate_evaluator = GenerateEvaluator(
         generator=generator,
-        local_padding_time_length=config.dataset.evaluate_local_padding_time_second,
+        local_padding_time_second=config.dataset.evaluate_local_padding_time_second,
     )
     ext = extensions.Evaluator(eval_iter, generate_evaluator, device=device)
     trainer.extend(ext, name="eval", trigger=trigger_eval)
