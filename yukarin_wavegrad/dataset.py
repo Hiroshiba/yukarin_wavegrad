@@ -2,8 +2,10 @@ import glob
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Dict, List, Union
 
+import librosa
 import numpy
 from acoustic_feature_extractor.data.sampling_data import SamplingData
 from acoustic_feature_extractor.data.wave import Wave
@@ -32,6 +34,50 @@ class LazyInput:
             silence=SamplingData.load(self.path_silence),
             local=SamplingData.load(self.path_local),
         )
+
+
+@dataclass
+class SpectrogramLazyInput(LazyInput):
+    path_local: Path = None
+
+    def generate(self):
+        wave = Wave.load(self.path_wave)
+
+        if self.path_local is None or not self.path_local.exists():
+            local_rate = 80
+            local_array = to_log_melspectrogram(wave=wave, rate=local_rate)
+            local = SamplingData(array=local_array, rate=local_rate)
+
+            with NamedTemporaryFile(suffix=".npy", delete=False) as f:
+                self.path_local = Path(f.name)
+                local.save(self.path_local)
+        else:
+            local = SamplingData.load(self.path_local)
+
+        return Input(
+            wave=wave,
+            silence=SamplingData.load(self.path_silence),
+            local=local,
+        )
+
+
+def to_log_melspectrogram(wave: Wave, rate: int):
+    assert wave.sampling_rate == 24000
+    s = librosa.feature.melspectrogram(
+        wave.wave,
+        sr=wave.sampling_rate,
+        n_fft=2048,
+        hop_length=wave.sampling_rate // rate,
+        win_length=wave.sampling_rate // rate * 4,
+        window="hann",
+        center=True,
+        pad_mode="reflect",
+        n_mels=80,
+        fmin=20,
+        fmax=12000,
+    ).T
+    s = numpy.log10(numpy.maximum(s, 1e-10))
+    return numpy.ascontiguousarray(s).astype(numpy.float32)
 
 
 class BaseWaveDataset(Dataset):
@@ -184,19 +230,21 @@ class SpeakerWavesDataset(Dataset):
 
 
 def create_dataset(config: DatasetConfig):
-    wave_paths = {Path(p).stem: Path(p) for p in glob.glob(str(config.input_wave_glob))}
+    wave_paths = {Path(p).stem: Path(p) for p in glob.glob(config.input_wave_glob)}
     fn_list = sorted(wave_paths.keys())
     assert len(fn_list) > 0
 
     silence_paths = {
-        Path(p).stem: Path(p) for p in glob.glob(str(config.input_silence_glob))
+        Path(p).stem: Path(p) for p in glob.glob(config.input_silence_glob)
     }
     assert set(fn_list) == set(silence_paths.keys())
 
-    local_paths = {
-        Path(p).stem: Path(p) for p in glob.glob(str(config.input_local_glob))
-    }
-    assert set(fn_list) == set(local_paths.keys())
+    local_paths = None
+    if config.input_local_glob is not None:
+        local_paths = {
+            Path(p).stem: Path(p) for p in glob.glob(config.input_local_glob)
+        }
+        assert set(fn_list) == set(local_paths.keys())
 
     speaker_ids = None
     if config.speaker_dict_path is not None:
@@ -229,6 +277,11 @@ def create_dataset(config: DatasetConfig):
                 path_silence=silence_paths[fn],
                 path_local=local_paths[fn],
             )
+            if local_paths is not None
+            else SpectrogramLazyInput(
+                path_wave=wave_paths[fn],
+                path_silence=silence_paths[fn],
+            )
             for fn in fns
         ]
 
@@ -248,10 +301,11 @@ def create_dataset(config: DatasetConfig):
             min_not_silence_length=config.min_not_silence_length,
         )
 
-        dataset = SpeakerWavesDataset(
-            wave_dataset=dataset,
-            speaker_ids=[speaker_ids[fn] for fn in fns],
-        )
+        if speaker_ids is not None:
+            dataset = SpeakerWavesDataset(
+                wave_dataset=dataset,
+                speaker_ids=[speaker_ids[fn] for fn in fns],
+            )
 
         if for_evaluate:
             dataset = ConcatDataset([dataset] * config.evaluate_times)

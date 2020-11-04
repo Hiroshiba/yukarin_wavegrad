@@ -11,7 +11,7 @@ class DatasetConfig:
     sampling_length: int
     input_wave_glob: str
     input_silence_glob: str
-    input_local_glob: str
+    input_local_glob: Optional[str]
     local_padding_length: int
     min_not_silence_length: int
     speaker_dict_path: Optional[str]
@@ -82,6 +82,7 @@ class TrainConfig:
 class ProjectConfig:
     name: str
     tags: Dict[str, Any] = field(default_factory=dict)
+    category: Optional[str] = None
 
 
 @dataclass

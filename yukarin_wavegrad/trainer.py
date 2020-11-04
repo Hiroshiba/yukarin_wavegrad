@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 import torch
 import yaml
-from pytorch_trainer.iterators import MultiprocessIterator
+from pytorch_trainer.iterators import MultiprocessIterator, SerialIterator
 from pytorch_trainer.training import Trainer, extensions
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
@@ -18,7 +18,7 @@ from yukarin_wavegrad.generator import Generator
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
 from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
-from yukarin_wavegrad.utility.tensorboard_extension import TensorboardReport
+from yukarin_wavegrad.utility.trainer_extension import TensorboardReport, WandbReport
 
 
 def create_trainer(
@@ -50,14 +50,22 @@ def create_trainer(
             batchsize = config.train.batchsize
         else:
             batchsize = config.train.eval_batchsize
-        return MultiprocessIterator(
-            dataset,
-            batchsize,
-            repeat=for_train,
-            shuffle=for_train,
-            n_processes=config.train.num_processes,
-            dataset_timeout=60 * 15,
-        )
+        if config.train.num_processes == 0:
+            return SerialIterator(
+                dataset,
+                batchsize,
+                repeat=for_train,
+                shuffle=for_train,
+            )
+        else:
+            return MultiprocessIterator(
+                dataset,
+                batchsize,
+                repeat=for_train,
+                shuffle=for_train,
+                n_processes=config.train.num_processes,
+                dataset_timeout=60 * 15,
+            )
 
     datasets = create_dataset(config.dataset)
     train_iter = _create_iterator(datasets["train"], for_train=True, for_eval=False)
@@ -142,6 +150,15 @@ def create_trainer(
 
     ext = TensorboardReport(writer=writer)
     trainer.extend(ext, trigger=trigger_log)
+
+    if config.project.category is not None:
+        ext = WandbReport(
+            config_dict=config.to_dict(),
+            project_category=config.project.category,
+            project_name=config.project.name,
+            output_dir=output.joinpath("wandb"),
+        )
+        trainer.extend(ext, trigger=trigger_log)
 
     (output / "struct.txt").write_text(repr(model))
 

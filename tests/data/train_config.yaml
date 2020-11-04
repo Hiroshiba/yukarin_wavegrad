@@ -47,3 +47,4 @@ train:
 project:
   name: null
   tags: {}
+  category: "yukarin_wavegrad"
