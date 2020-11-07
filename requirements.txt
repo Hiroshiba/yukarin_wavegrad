@@ -1,12 +1,12 @@
 more_itertools
 numpy
-torch==1.5.0
+torch
 tqdm
 retry
 pytest
 pyyaml
 tensorboardX
 tensorboard
-git+https://github.com/Hiroshiba/wandb-client@6c9fa2d48dc48604b37ed330f8c572c2574a3da4
-git+https://github.com/Hiroshiba/pytorch-trainer@1.2.0
+wandb==0.10.9
+git+https://github.com/Hiroshiba/pytorch-trainer@1.3.0
 git+https://github.com/Hiroshiba/acoustic_feature_extractor@7beb1ceb7244a997865778c3a7c730e5fc0cbe02

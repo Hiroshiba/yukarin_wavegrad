@@ -9,4 +9,4 @@ WORKDIR /app
 
 # install requirements
 COPY requirements.txt /app/
-RUN pip install -r <(cat requirements.txt | grep -v 'torch==1.5.0')
+RUN pip install -r <(cat requirements.txt | grep -v 'torch')

@@ -74,7 +74,9 @@ class TrainConfig:
     eval_iteration: int
     snapshot_iteration: int
     stop_iteration: int
+    multistep_shift: Optional[Dict[str, Any]] = None
     num_processes: Optional[int] = None
+    use_multithread: bool = False
     optimizer: Dict[str, Any] = field(default_factory=dict(name="Adam"))
 
 

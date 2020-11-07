@@ -5,7 +5,11 @@ from typing import Any, Dict
 
 import torch
 import yaml
-from pytorch_trainer.iterators import MultiprocessIterator, SerialIterator
+from pytorch_trainer.iterators import (
+    MultiprocessIterator,
+    MultithreadIterator,
+    SerialIterator,
+)
 from pytorch_trainer.training import Trainer, extensions
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
@@ -17,8 +21,16 @@ from yukarin_wavegrad.evaluator import GenerateEvaluator
 from yukarin_wavegrad.generator import Generator
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
+from yukarin_wavegrad.utility.amp_updater import AmpUpdater
 from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
 from yukarin_wavegrad.utility.trainer_extension import TensorboardReport, WandbReport
+
+try:
+    from torch.cuda import amp
+
+    amp_exist = True
+except ImportError:
+    amp_exist = False
 
 
 def create_trainer(
@@ -58,14 +70,23 @@ def create_trainer(
                 shuffle=for_train,
             )
         else:
-            return MultiprocessIterator(
-                dataset,
-                batchsize,
-                repeat=for_train,
-                shuffle=for_train,
-                n_processes=config.train.num_processes,
-                dataset_timeout=60 * 15,
-            )
+            if not config.train.use_multithread:
+                return MultiprocessIterator(
+                    dataset,
+                    batchsize,
+                    repeat=for_train,
+                    shuffle=for_train,
+                    n_processes=config.train.num_processes,
+                    dataset_timeout=60 * 15,
+                )
+            else:
+                return MultithreadIterator(
+                    dataset,
+                    batchsize,
+                    repeat=for_train,
+                    shuffle=for_train,
+                    n_threads=config.train.num_processes,
+                )
 
     datasets = create_dataset(config.dataset)
     train_iter = _create_iterator(datasets["train"], for_train=True, for_eval=False)
@@ -86,12 +107,20 @@ def create_trainer(
         raise ValueError(n)
 
     # updater
-    updater = StandardUpdater(
-        iterator=train_iter,
-        optimizer=optimizer,
-        model=model,
-        device=device,
-    )
+    if not amp_exist:
+        updater = StandardUpdater(
+            iterator=train_iter,
+            optimizer=optimizer,
+            model=model,
+            device=device,
+        )
+    else:
+        updater = AmpUpdater(
+            iterator=train_iter,
+            optimizer=optimizer,
+            model=model,
+            device=device,
+        )
 
     # trainer
     trigger_log = (config.train.log_iteration, "iteration")
@@ -118,6 +147,9 @@ def create_trainer(
     #         else None,
     #     ),
     # )
+
+    if config.train.multistep_shift is not None:
+        trainer.extend(extensions.MultistepShift(**config.train.multistep_shift))
 
     ext = extensions.Evaluator(test_iter, model, device=device)
     trainer.extend(ext, name="test", trigger=trigger_log)
@@ -148,8 +180,7 @@ def create_trainer(
         trigger=trigger_log,
     )
 
-    ext = TensorboardReport(writer=writer)
-    trainer.extend(ext, trigger=trigger_log)
+    trainer.extend(ext, trigger=TensorboardReport(writer=writer))
 
     if config.project.category is not None:
         ext = WandbReport(
