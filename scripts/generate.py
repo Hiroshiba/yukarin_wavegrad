@@ -39,6 +39,7 @@ def generate(
     output_dir: Path,
     batch_size: int,
     num_test: int,
+    from_train_data: bool,
     time_second: float,
     use_gpu: bool,
 ):
@@ -63,7 +64,7 @@ def generate(
     )
 
     config.dataset.sampling_length = int(config.dataset.sampling_rate * time_second)
-    dataset = create_dataset(config.dataset)["test"]
+    dataset = create_dataset(config.dataset)["test" if not from_train_data else "train"]
 
     if isinstance(dataset, SpeakerWavesDataset):
         local_paths = [
@@ -81,10 +82,6 @@ def generate(
         data = concat_examples(data)
         output = generator.generate(
             local=data["local"],
-            local_padding_length=(
-                config.dataset.evaluate_local_padding_time_second
-                * config.dataset.sampling_rate
-            ),
             speaker_id=data["speaker_id"] if "speaker_id" in data else None,
         )
 
@@ -100,6 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", required=True, type=Path)
     parser.add_argument("--batch_size", type=int, default=10)
     parser.add_argument("--num_test", type=int, default=10)
+    parser.add_argument("--from_train_data", action="store_true")
     parser.add_argument("--time_second", type=float, default=1)
     parser.add_argument("--use_gpu", action="store_true")
     generate(**vars(parser.parse_args()))

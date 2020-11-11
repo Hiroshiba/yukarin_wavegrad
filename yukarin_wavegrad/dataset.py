@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import librosa
 import numpy
@@ -43,7 +43,9 @@ class SpectrogramLazyInput(LazyInput):
     def generate(self):
         wave = Wave.load(self.path_wave)
 
-        if self.path_local is None or not self.path_local.exists():
+        try:
+            local = SamplingData.load(self.path_local)
+        except:
             local_rate = 80
             local_array = to_log_melspectrogram(wave=wave, rate=local_rate)
             local = SamplingData(array=local_array, rate=local_rate)
@@ -51,8 +53,6 @@ class SpectrogramLazyInput(LazyInput):
             with NamedTemporaryFile(suffix=".npy", delete=False) as f:
                 self.path_local = Path(f.name)
                 local.save(self.path_local)
-        else:
-            local = SamplingData.load(self.path_local)
 
         return Input(
             wave=wave,
