@@ -55,6 +55,7 @@ def generate(
         model_dir=model_dir,
         iteration=model_iteration,
     )
+    print("model path: ", model_path)
     generator = Generator(
         network_config=config.network,
         noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
@@ -67,16 +68,16 @@ def generate(
     dataset = create_dataset(config.dataset)["test" if not from_train_data else "train"]
 
     if isinstance(dataset, SpeakerWavesDataset):
-        local_paths = [
-            input.path_local for input in dataset.wave_dataset.inputs[:num_test]
+        wave_paths = [
+            input.path_wave for input in dataset.wave_dataset.inputs[:num_test]
         ]
     elif isinstance(dataset, WavesDataset):
-        local_paths = [input.path_local for input in dataset.inputs[:num_test]]
+        wave_paths = [input.path_wave for input in dataset.inputs[:num_test]]
     else:
         raise Exception()
 
-    for data, local_path in tqdm(
-        zip(chunked(dataset, batch_size), chunked(local_paths, batch_size)),
+    for data, wave_path in tqdm(
+        zip(chunked(dataset, batch_size), chunked(wave_paths, batch_size)),
         desc="generate",
     ):
         data = concat_examples(data)
@@ -85,7 +86,7 @@ def generate(
             speaker_id=data["speaker_id"] if "speaker_id" in data else None,
         )
 
-        for wave, p in zip(output, local_path):
+        for wave, p in zip(output, wave_path):
             wave.save(output_dir / (p.stem + ".wav"))
 
 
