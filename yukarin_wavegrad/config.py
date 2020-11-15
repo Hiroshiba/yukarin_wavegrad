@@ -77,6 +77,7 @@ class TrainConfig:
     multistep_shift: Optional[Dict[str, Any]] = None
     num_processes: Optional[int] = None
     use_multithread: bool = False
+    use_amp: Optional[bool] = None
     optimizer: Dict[str, Any] = field(default_factory=dict(name="Adam"))
 
 

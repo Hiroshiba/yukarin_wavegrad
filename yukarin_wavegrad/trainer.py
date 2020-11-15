@@ -107,15 +107,16 @@ def create_trainer(
         raise ValueError(n)
 
     # updater
-    if not amp_exist:
-        updater = StandardUpdater(
+    use_amp = config.train.use_amp if config.train.use_amp is not None else amp_exist
+    if use_amp:
+        updater = AmpUpdater(
             iterator=train_iter,
             optimizer=optimizer,
             model=model,
             device=device,
         )
     else:
-        updater = AmpUpdater(
+        updater = StandardUpdater(
             iterator=train_iter,
             optimizer=optimizer,
             model=model,
