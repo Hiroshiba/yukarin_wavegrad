@@ -80,7 +80,10 @@ class GenerateEvaluator(nn.Module):
         mcd_list = []
         for wi, wo in zip(wave.cpu().numpy(), output):
             wi = Wave(wave=wi, sampling_rate=wo.sampling_rate)
-            mcd = calc_mcd(wave1=wi, wave2=wo)
+            try:
+                mcd = calc_mcd(wave1=wi, wave2=wo)
+            except Exception:
+                mcd = numpy.nan
             mcd_list.append(mcd)
 
         scores = {
