@@ -10,7 +10,7 @@ from pytorch_trainer.iterators import (
     MultithreadIterator,
     SerialIterator,
 )
-from pytorch_trainer.training import Trainer, extensions
+from pytorch_trainer.training import Trainer, extensions, triggers
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 from torch import optim
@@ -41,7 +41,7 @@ def create_trainer(
     config = Config.from_dict(config_dict)
     config.add_git_info()
 
-    output.mkdir(parents=True)
+    output.mkdir(exist_ok=True, parents=True)
     with (output / "config.yaml").open(mode="w") as f:
         yaml.safe_dump(config.to_dict(), f)
 
@@ -126,7 +126,6 @@ def create_trainer(
     # trainer
     trigger_log = (config.train.log_iteration, "iteration")
     trigger_eval = (config.train.eval_iteration, "iteration")
-    trigger_snapshot = (config.train.snapshot_iteration, "iteration")
     trigger_stop = (
         (config.train.stop_iteration, "iteration")
         if config.train.stop_iteration is not None
@@ -170,9 +169,14 @@ def create_trainer(
     trainer.extend(ext, name="eval", trigger=trigger_eval)
 
     ext = extensions.snapshot_object(
-        predictor, filename="predictor_{.updater.iteration}.pth"
+        predictor,
+        filename="predictor_{.updater.iteration}.pth",
+        n_retains=1,
     )
-    trainer.extend(ext, trigger=trigger_snapshot)
+    trainer.extend(
+        ext,
+        trigger=triggers.MinValueTrigger("eval/main/mcd", trigger=trigger_eval),
+    )
 
     trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
     trainer.extend(extensions.LogReport(trigger=trigger_log))
@@ -196,5 +200,13 @@ def create_trainer(
 
     if trigger_stop is not None:
         trainer.extend(extensions.ProgressBar(trigger_stop))
+
+    ext = extensions.snapshot_object(
+        trainer,
+        filename="trainer_{.updater.iteration}.pth",
+        n_retains=1,
+        autoload=True,
+    )
+    trainer.extend(ext, trigger=trigger_eval)
 
     return trainer

@@ -72,7 +72,6 @@ class TrainConfig:
     eval_batchsize: Optional[int]
     log_iteration: int
     eval_iteration: int
-    snapshot_iteration: int
     stop_iteration: int
     multistep_shift: Optional[Dict[str, Any]] = None
     num_processes: Optional[int] = None
@@ -121,3 +120,6 @@ def backward_compatible(d: Dict[str, Any]):
 
     if "evaluate_local_padding_time_second" not in d["dataset"]:
         d["dataset"]["evaluate_local_padding_time_second"] = 0
+
+    if "snapshot_iteration" in d["train"]:
+        d["train"].pop("snapshot_iteration")

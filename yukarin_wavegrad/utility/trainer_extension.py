@@ -44,10 +44,34 @@ class WandbReport(Extension):
         project_name: str,
         output_dir: Path,
     ):
-        wandb.init(project=project_category, name=project_name, dir=output_dir)
-        wandb.config.update(_flatten_dict(config_dict))
+        self.config_dict = config_dict
+        self.project_category = project_category
+        self.project_name = project_name
+        self.output_dir = output_dir
+
+        self.initialized = False
+        self.wandb_id = wandb.util.generate_id()
 
     def __call__(self, trainer: Trainer):
+        if not self.initialized:
+            self.initialized = True
+
+            wandb.init(
+                id=self.wandb_id,
+                project=self.project_category,
+                name=self.project_name,
+                dir=self.output_dir,
+                resume="allow",
+            )
+            wandb.config.update(_flatten_dict(self.config_dict), allow_val_change=True)
+
         observations = trainer.observation
         n_iter = trainer.updater.iteration
         wandb.log(observations, step=n_iter)
+
+    def state_dict(self):
+        state_dict = {"wandb_id": self.wandb_id}
+        return state_dict
+
+    def load_state_dict(self, state_dict):
+        self.wandb_id = state_dict["wandb_id"]

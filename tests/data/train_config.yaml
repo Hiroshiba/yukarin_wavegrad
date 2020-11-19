@@ -37,7 +37,6 @@ train:
   eval_batchsize: 4
   log_iteration: 1000
   eval_iteration: 20000
-  snapshot_iteration: 100000
   stop_iteration: 1000000
   num_processes: 4
   optimizer:
@@ -47,4 +46,4 @@ train:
 project:
   name: null
   tags: {}
-  category: "yukarin_wavegrad"
+  category: "check_yukarin_wavegrad"
