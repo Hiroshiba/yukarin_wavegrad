@@ -4,6 +4,7 @@ dataset:
   input_wave_glob: "/path/to/input_wave_glob"
   input_silence_glob: "/path/to/input_silence_glob"
   input_local_glob: "path/to/input_local_glob"
+  mulaw: false
   min_not_silence_length: 1000
   speaker_dict_path: "/path/to/speaker_dict_path"
   speaker_size: 100

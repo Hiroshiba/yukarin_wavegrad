@@ -14,6 +14,7 @@ from pytorch_trainer.training import Trainer, extensions, triggers
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 from torch import optim
+from torch.optim.optimizer import Optimizer
 
 from yukarin_wavegrad.config import Config, NoiseScheduleModelConfig
 from yukarin_wavegrad.dataset import create_dataset
@@ -22,7 +23,7 @@ from yukarin_wavegrad.generator import Generator
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
 from yukarin_wavegrad.utility.amp_updater import AmpUpdater
-from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
+from yukarin_wavegrad.utility.pytorch_utility import init_weights
 from yukarin_wavegrad.utility.trainer_extension import TensorboardReport, WandbReport
 
 try:
@@ -53,7 +54,7 @@ def create_trainer(
         predictor=predictor,
         local_padding_length=config.dataset.local_padding_length,
     )
-    init_orthogonal(model)
+    init_weights(model, "orthogonal")
     model.to(device)
 
     # dataset
@@ -99,6 +100,7 @@ def create_trainer(
     cp: Dict[str, Any] = copy(config.train.optimizer)
     n = cp.pop("name").lower()
 
+    optimizer: Optimizer
     if n == "adam":
         optimizer = optim.Adam(model.parameters(), **cp)
     elif n == "sgd":
@@ -155,7 +157,7 @@ def create_trainer(
     trainer.extend(ext, name="test", trigger=trigger_log)
 
     generator = Generator(
-        network_config=config.network,
+        config=config,
         noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
         predictor=predictor,
         sampling_rate=config.dataset.sampling_rate,
@@ -179,6 +181,7 @@ def create_trainer(
     )
 
     trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
+    trainer.extend(extensions.observe_lr(), trigger=trigger_log)
     trainer.extend(extensions.LogReport(trigger=trigger_log))
     trainer.extend(
         extensions.PrintReport(["iteration", "main/loss", "test/main/loss"]),

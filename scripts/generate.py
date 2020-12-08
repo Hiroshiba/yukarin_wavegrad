@@ -41,14 +41,16 @@ def generate(
     num_test: int,
     from_train_data: bool,
     time_second: float,
+    noise_schedule_start: float,
+    noise_schedule_stop: float,
+    noise_schedule_num: int,
     use_gpu: bool,
 ):
-    if model_config is None:
-        model_config = model_dir / "config.yaml"
-
     output_dir.mkdir(exist_ok=True)
     save_arguments(output_dir / "arguments.yaml", generate, locals())
 
+    if model_config is None:
+        model_config = model_dir / "config.yaml"
     config = Config.from_dict(yaml.safe_load(model_config.open()))
 
     model_path = _get_predictor_model_path(
@@ -57,8 +59,10 @@ def generate(
     )
     print("model path: ", model_path)
     generator = Generator(
-        network_config=config.network,
-        noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
+        config=config,
+        noise_schedule_config=NoiseScheduleModelConfig(
+            start=noise_schedule_start, stop=noise_schedule_stop, num=noise_schedule_num
+        ),
         predictor=model_path,
         sampling_rate=config.dataset.sampling_rate,
         use_gpu=use_gpu,
@@ -100,5 +104,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_test", type=int, default=10)
     parser.add_argument("--from_train_data", action="store_true")
     parser.add_argument("--time_second", type=float, default=1)
+    parser.add_argument("--noise_schedule_start", type=float, default=1e-4)
+    parser.add_argument("--noise_schedule_stop", type=float, default=0.05)
+    parser.add_argument("--noise_schedule_num", type=int, default=50)
     parser.add_argument("--use_gpu", action="store_true")
     generate(**vars(parser.parse_args()))

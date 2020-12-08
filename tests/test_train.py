@@ -1,8 +1,9 @@
+import pytest
 import torch
 from retry import retry
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.network.predictor import create_predictor
-from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
+from yukarin_wavegrad.utility.pytorch_utility import init_weights
 
 from tests.utility import (
     create_model_config,
@@ -11,9 +12,12 @@ from tests.utility import (
     train_support,
 )
 
+iteration = 500
+
 
 @retry(tries=3)
-def test_train():
+@pytest.mark.parametrize("mulaw", [False, True])
+def test_train(mulaw: bool):
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -25,10 +29,10 @@ def test_train():
         predictor=predictor,
         local_padding_length=0,
     )
-    init_orthogonal(model)
+    init_weights(model, "orthogonal")
     model.to(device)
 
-    dataset = create_sign_wave_dataset()
+    dataset = create_sign_wave_dataset(mulaw=mulaw)
 
     def first_hook(o):
         assert o["main/loss"].data > 0.5
@@ -36,7 +40,6 @@ def test_train():
     def last_hook(o):
         assert o["main/loss"].data < 0.5
 
-    iteration = 500
     train_support(
         batch_size=16,
         device=device,
@@ -51,5 +54,5 @@ def test_train():
     # save model
     torch.save(
         model.predictor.state_dict(),
-        f"/tmp/test_training-iteration={iteration}.pth",
+        f"/tmp/test_training-mulaw={mulaw}-iteration={iteration}.pth",
     )

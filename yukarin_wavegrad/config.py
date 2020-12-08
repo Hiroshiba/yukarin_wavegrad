@@ -12,6 +12,7 @@ class DatasetConfig:
     input_wave_glob: str
     input_silence_glob: str
     input_local_glob: Optional[str]
+    mulaw: bool
     local_padding_length: int
     min_not_silence_length: int
     speaker_dict_path: Optional[str]
@@ -73,11 +74,11 @@ class TrainConfig:
     log_iteration: int
     eval_iteration: int
     stop_iteration: int
+    optimizer: Dict[str, Any]
     multistep_shift: Optional[Dict[str, Any]] = None
     num_processes: Optional[int] = None
     use_multithread: bool = False
     use_amp: Optional[bool] = None
-    optimizer: Dict[str, Any] = field(default_factory=dict(name="Adam"))
 
 
 @dataclass
@@ -123,3 +124,6 @@ def backward_compatible(d: Dict[str, Any]):
 
     if "snapshot_iteration" in d["train"]:
         d["train"].pop("snapshot_iteration")
+
+    if "mulaw" not in d["dataset"]:
+        d["dataset"]["mulaw"] = False

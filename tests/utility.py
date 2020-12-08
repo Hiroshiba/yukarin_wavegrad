@@ -22,15 +22,16 @@ from yukarin_wavegrad.config import (
 from yukarin_wavegrad.dataset import BaseWaveDataset
 from yukarin_wavegrad.model import Model
 from yukarin_wavegrad.utility.dataset_utility import default_convert
-from yukarin_wavegrad.utility.pytorch_utility import init_orthogonal
 
 
 def get_data_directory() -> Path:
     return Path(__file__).parent.relative_to(Path.cwd()) / "data"
 
 
-def get_test_model_path(iteration):
-    return get_data_directory().joinpath(f"test_training-iteration={iteration}.pth")
+def get_test_model_path(mulaw, iteration):
+    return get_data_directory().joinpath(
+        f"test_training-mulaw={mulaw}-iteration={iteration}.pth"
+    )
 
 
 def create_network_config(
@@ -70,6 +71,7 @@ class SignWaveDataset(BaseWaveDataset):
         self,
         sampling_length: int,
         sampling_rate: int,
+        mulaw: bool,
         local_scale: int,
         frequency_range: Tuple[float, float],
     ):
@@ -77,6 +79,7 @@ class SignWaveDataset(BaseWaveDataset):
             sampling_length=sampling_length,
             local_padding_length=0,
             min_not_silence_length=0,
+            mulaw=mulaw,
         )
         self.sampling_rate = sampling_rate
         self.local_scale = local_scale
@@ -119,10 +122,11 @@ class SignWaveDataset(BaseWaveDataset):
         )
 
 
-def create_sign_wave_dataset(sampling_rate: int = 4800):
+def create_sign_wave_dataset(sampling_rate: int = 4800, mulaw: bool = False):
     return SignWaveDataset(
         sampling_length=9600,
         sampling_rate=sampling_rate,
+        mulaw=mulaw,
         local_scale=320,
         frequency_range=(220, 880),
     )
@@ -138,8 +142,6 @@ def train_support(
     last_hook: Callable[[Dict], None] = None,
     learning_rate=2e-4,
 ):
-    init_orthogonal(model)
-
     optimizer = Adam(model.parameters(), lr=learning_rate)
 
     train_iter = SerialIterator(dataset, batch_size)

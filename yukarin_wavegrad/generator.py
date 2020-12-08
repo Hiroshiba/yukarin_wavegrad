@@ -5,7 +5,8 @@ import numpy
 import torch
 from acoustic_feature_extractor.data.wave import Wave
 
-from yukarin_wavegrad.config import NetworkConfig, NoiseScheduleModelConfig
+from yukarin_wavegrad.config import Config, NoiseScheduleModelConfig
+from yukarin_wavegrad.data import decode_mulaw
 from yukarin_wavegrad.model import NoiseScheduler
 from yukarin_wavegrad.network.predictor import Predictor, create_predictor
 
@@ -13,7 +14,7 @@ from yukarin_wavegrad.network.predictor import Predictor, create_predictor
 class Generator(object):
     def __init__(
         self,
-        network_config: NetworkConfig,
+        config: Config,
         noise_schedule_config: NoiseScheduleModelConfig,
         predictor: Union[Predictor, Path],
         sampling_rate: int,
@@ -21,11 +22,12 @@ class Generator(object):
     ):
         self.sampling_rate = sampling_rate
         self.device = torch.device("cuda") if use_gpu else torch.device("cpu")
-        self.scale = numpy.prod(network_config.scales, dtype=int)
+        self.scale = numpy.prod(config.network.scales, dtype=int)
+        self.mulaw = config.dataset.mulaw
 
         if isinstance(predictor, Path):
             state_dict = torch.load(predictor)
-            predictor = create_predictor(network_config)
+            predictor = create_predictor(config.network)
             predictor.load_state_dict(state_dict)
         self.predictor = predictor.eval().to(self.device)
 
@@ -82,7 +84,7 @@ class Generator(object):
         local_padding_length: int = 0,
         speaker_id: Union[numpy.ndarray, torch.Tensor] = None,
     ):
-        if isinstance(input, numpy.ndarray):
+        if isinstance(local, numpy.ndarray):
             local = torch.from_numpy(local)
         local = local.to(self.device)
 
@@ -97,7 +99,9 @@ class Generator(object):
                 local_padding_length=local_padding_length,
                 speaker_id=speaker_id,
             )
-        return [
-            Wave(wave=wave, sampling_rate=self.sampling_rate)
-            for wave in output.cpu().numpy()
-        ]
+
+        waves = output.cpu().numpy()
+        if self.mulaw:
+            waves = decode_mulaw(waves)
+
+        return [Wave(wave=wave, sampling_rate=self.sampling_rate) for wave in waves]

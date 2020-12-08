@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import torch
 from pytorch_trainer.dataset.convert import concat_examples
 from yukarin_wavegrad.config import NoiseScheduleModelConfig
@@ -12,14 +13,32 @@ from tests.utility import (
 )
 
 
-def test_generator():
+@pytest.mark.parametrize("mulaw", [False, True])
+def test_generator(mulaw: bool):
     iteration = 100000
-    sampling_rate = 16000
+    sampling_rate = 4800
+
+    dataset_config = type(
+        "DatasetConfig",
+        (object,),
+        dict(
+            mulaw=mulaw,
+        ),
+    )
+
+    config = type(
+        "Config",
+        (object,),
+        dict(
+            network=create_network_config(),
+            dataset=dataset_config,
+        ),
+    )
 
     generator = Generator(
-        network_config=create_network_config(),
+        config=config,
         noise_schedule_config=NoiseScheduleModelConfig(start=1e-4, stop=0.05, num=50),
-        predictor=get_test_model_path(iteration=iteration),
+        predictor=get_test_model_path(mulaw=mulaw, iteration=iteration),
         sampling_rate=sampling_rate,
         use_gpu=torch.cuda.is_available(),
     )
@@ -33,6 +52,7 @@ def test_generator():
                 "/tmp/"
                 f"test_generator_audio"
                 f"-num={num}"
+                f"-mulaw={mulaw}"
                 f"-iteration={iteration}"
                 ".wav"
             )

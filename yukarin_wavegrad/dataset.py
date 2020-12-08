@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import librosa
 import numpy
@@ -12,6 +12,7 @@ from acoustic_feature_extractor.data.wave import Wave
 from torch.utils.data import ConcatDataset, Dataset
 
 from yukarin_wavegrad.config import DatasetConfig
+from yukarin_wavegrad.data import encode_mulaw
 from yukarin_wavegrad.utility.dataset_utility import default_convert
 
 
@@ -86,10 +87,12 @@ class BaseWaveDataset(Dataset):
         sampling_length: int,
         local_padding_length: int,
         min_not_silence_length: int,
+        mulaw: bool,
     ):
         self.sampling_length = sampling_length
         self.local_padding_length = local_padding_length
         self.min_not_silence_length = min_not_silence_length
+        self.mulaw = mulaw
 
     @staticmethod
     def extract_input(
@@ -99,12 +102,12 @@ class BaseWaveDataset(Dataset):
         local_data: SamplingData,
         local_padding_length: int,
         min_not_silence_length: int,
+        mulaw: bool,
         padding_value=0,
     ):
         """
         :return:
             wave: (sampling_length, )
-            silence: (sampling_length, )
             local: (sampling_length // scale + pad, )
         """
         sr = wave_data.sampling_rate
@@ -138,6 +141,8 @@ class BaseWaveDataset(Dataset):
             raise Exception("cannot pick not silence data")
 
         wave = wave_data.wave[offset : offset + sl]
+        if mulaw:
+            wave = encode_mulaw(wave)
 
         # local
         l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
@@ -179,6 +184,7 @@ class BaseWaveDataset(Dataset):
             local_data=local_data,
             local_padding_length=self.local_padding_length,
             min_not_silence_length=self.min_not_silence_length,
+            mulaw=self.mulaw,
         )
 
 
@@ -189,11 +195,13 @@ class WavesDataset(BaseWaveDataset):
         sampling_length: int,
         local_padding_length: int,
         min_not_silence_length: int,
+        mulaw: bool,
     ):
         super().__init__(
             sampling_length=sampling_length,
             local_padding_length=local_padding_length,
             min_not_silence_length=min_not_silence_length,
+            mulaw=mulaw,
         )
         self.inputs = inputs
 
@@ -299,6 +307,7 @@ def create_dataset(config: DatasetConfig):
             sampling_length=sampling_length,
             local_padding_length=local_padding_length,
             min_not_silence_length=config.min_not_silence_length,
+            mulaw=config.mulaw,
         )
 
         if speaker_ids is not None:
