@@ -4,6 +4,7 @@ from typing import Union
 import numpy
 import torch
 from acoustic_feature_extractor.data.wave import Wave
+from tqdm import tqdm
 
 from yukarin_wavegrad.config import Config, NoiseScheduleModelConfig
 from yukarin_wavegrad.data import decode_mulaw
@@ -49,7 +50,9 @@ class Generator(object):
         length = local.shape[2] * self.scale - local_padding_length * 2
 
         wave = self.predictor.generate_noise(batsh_size, length)
-        for i in reversed(range(self.noise_scheduler.max_iteration)):
+        for i in tqdm(
+            reversed(range(self.noise_scheduler.max_iteration)), desc="generator"
+        ):
             beta = self.noise_scheduler.beta[i].expand(batsh_size).unsqueeze(1)
             alpha = self.noise_scheduler.alpha[i].expand(batsh_size).unsqueeze(1)
             noise_level = (
@@ -73,7 +76,9 @@ class Generator(object):
                 noise = self.predictor.generate_noise(batsh_size, length)
                 before_noise_level = self.noise_scheduler.discrete_noise_level[i]
                 wave += (
-                    torch.sqrt(beta * (1 - before_noise_level) / (1 - noise_level))
+                    torch.sqrt(
+                        beta * (1 - before_noise_level ** 2) / (1 - noise_level ** 2)
+                    )
                     * noise
                 )
         return wave

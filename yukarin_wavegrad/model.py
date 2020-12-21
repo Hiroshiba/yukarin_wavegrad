@@ -38,8 +38,8 @@ class NoiseScheduler(nn.Module):
         return: (num, 1)
         """
         r = torch.randint(self.max_iteration, size=(num,))
-        mi = self.discrete_noise_level[r]
-        ma = self.discrete_noise_level[r + 1]
+        ma = self.discrete_noise_level[r]
+        mi = self.discrete_noise_level[r + 1]
         noise_level = torch.rand(num).float().to(self.device) * (ma - mi) + mi
         return noise_level.unsqueeze(1)
 
