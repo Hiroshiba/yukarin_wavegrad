@@ -42,7 +42,7 @@ class Predictor(nn.Module):
         return self.wave_grad.prev_conv.weight.device
 
     def generate_noise(self, *shape):
-        return torch.randn(*shape).float().to(self.device)
+        return torch.randn(*shape).double().to(self.device)
 
     def forward(
         self,

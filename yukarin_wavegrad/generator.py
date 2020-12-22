@@ -49,6 +49,8 @@ class Generator(object):
         batsh_size = local.shape[0]
         length = local.shape[2] * self.scale - local_padding_length * 2
 
+        self.predictor.double()
+
         wave = self.predictor.generate_noise(batsh_size, length)
         for i in tqdm(
             reversed(range(self.noise_scheduler.max_iteration)), desc="generator"

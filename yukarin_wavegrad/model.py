@@ -19,10 +19,10 @@ class NoiseScheduler(nn.Module):
         alpha = 1 - beta
         discrete_noise_level = numpy.r_[1, numpy.sqrt(numpy.cumprod(alpha))]
 
-        self.register_buffer("beta", torch.from_numpy(beta).float())
-        self.register_buffer("alpha", torch.from_numpy(alpha).float())
+        self.register_buffer("beta", torch.from_numpy(beta).double())
+        self.register_buffer("alpha", torch.from_numpy(alpha).double())
         self.register_buffer(
-            "discrete_noise_level", torch.from_numpy(discrete_noise_level).float()
+            "discrete_noise_level", torch.from_numpy(discrete_noise_level).double()
         )
 
     @property
@@ -40,7 +40,7 @@ class NoiseScheduler(nn.Module):
         r = torch.randint(self.max_iteration, size=(num,))
         ma = self.discrete_noise_level[r]
         mi = self.discrete_noise_level[r + 1]
-        noise_level = torch.rand(num).float().to(self.device) * (ma - mi) + mi
+        noise_level = torch.rand(num).double().to(self.device) * (ma - mi) + mi
         return noise_level.unsqueeze(1)
 
 

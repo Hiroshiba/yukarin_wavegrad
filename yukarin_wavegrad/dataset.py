@@ -78,7 +78,7 @@ def to_log_melspectrogram(wave: Wave, rate: int):
         fmax=12000,
     ).T
     s = numpy.log10(numpy.maximum(s, 1e-10))
-    return numpy.ascontiguousarray(s).astype(numpy.float32)
+    return numpy.ascontiguousarray(s).astype(numpy.float64)
 
 
 class BaseWaveDataset(Dataset):

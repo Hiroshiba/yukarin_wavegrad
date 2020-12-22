@@ -13,7 +13,7 @@ class NoiseLevelPositionalEncoding(nn.Module):
                 torch.arange(0, hidden_size, 2).double()
                 * (-numpy.log(10000.0) / hidden_size)
             )
-        ).float()
+        ).double()
         factor = factor.unsqueeze(0)
         self.register_buffer("factor", factor)
 
