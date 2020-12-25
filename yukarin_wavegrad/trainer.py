@@ -173,7 +173,7 @@ def create_trainer(
     ext = extensions.snapshot_object(
         predictor,
         filename="predictor_{.updater.iteration}.pth",
-        n_retains=1,
+        n_retains=5,
     )
     trainer.extend(
         ext,

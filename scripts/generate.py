@@ -68,7 +68,10 @@ def generate(
         use_gpu=use_gpu,
     )
 
+    local_padding_length = config.dataset.sampling_rate
+
     config.dataset.sampling_length = int(config.dataset.sampling_rate * time_second)
+    config.dataset.local_padding_length = local_padding_length
     dataset = create_dataset(config.dataset)["test" if not from_train_data else "train"]
 
     if isinstance(dataset, SpeakerWavesDataset):
@@ -87,6 +90,7 @@ def generate(
         data = concat_examples(data)
         output = generator.generate(
             local=data["local"],
+            local_padding_length=local_padding_length,
             speaker_id=data["speaker_id"] if "speaker_id" in data else None,
         )
 
