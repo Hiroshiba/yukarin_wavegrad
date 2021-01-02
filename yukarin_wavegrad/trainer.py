@@ -1,16 +1,13 @@
 import warnings
 from copy import copy
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
 import torch
 import yaml
-from pytorch_trainer.iterators import (
-    MultiprocessIterator,
-    MultithreadIterator,
-    SerialIterator,
-)
-from pytorch_trainer.training import Trainer, extensions, triggers
+from pytorch_trainer.iterators import MultiprocessIterator
+from pytorch_trainer.training import Trainer, extensions
 from pytorch_trainer.training.updaters import StandardUpdater
 from tensorboardX import SummaryWriter
 from torch import optim
@@ -25,6 +22,7 @@ from yukarin_wavegrad.network.predictor import create_predictor
 from yukarin_wavegrad.utility.amp_updater import AmpUpdater
 from yukarin_wavegrad.utility.pytorch_utility import init_weights
 from yukarin_wavegrad.utility.trainer_extension import TensorboardReport, WandbReport
+from yukarin_wavegrad.utility.trainer_utility import LowValueTrigger, create_iterator
 
 try:
     from torch.cuda import amp
@@ -58,36 +56,13 @@ def create_trainer(
     model.to(device)
 
     # dataset
-    def _create_iterator(dataset, for_train: bool, for_eval: bool):
-        if not for_eval or config.train.eval_batchsize is None:
-            batchsize = config.train.batchsize
-        else:
-            batchsize = config.train.eval_batchsize
-        if config.train.num_processes == 0:
-            return SerialIterator(
-                dataset,
-                batchsize,
-                repeat=for_train,
-                shuffle=for_train,
-            )
-        else:
-            if not config.train.use_multithread:
-                return MultiprocessIterator(
-                    dataset,
-                    batchsize,
-                    repeat=for_train,
-                    shuffle=for_train,
-                    n_processes=config.train.num_processes,
-                    dataset_timeout=60 * 15,
-                )
-            else:
-                return MultithreadIterator(
-                    dataset,
-                    batchsize,
-                    repeat=for_train,
-                    shuffle=for_train,
-                    n_threads=config.train.num_processes,
-                )
+    _create_iterator = partial(
+        create_iterator,
+        batch_size=config.train.batchsize,
+        eval_batch_size=config.train.eval_batchsize,
+        num_processes=config.train.num_processes,
+        use_multithread=config.train.use_multithread,
+    )
 
     datasets = create_dataset(config.dataset)
     train_iter = _create_iterator(datasets["train"], for_train=True, for_eval=False)
@@ -177,7 +152,7 @@ def create_trainer(
     )
     trainer.extend(
         ext,
-        trigger=triggers.MinValueTrigger("eval/main/mcd", trigger=trigger_eval),
+        trigger=LowValueTrigger("eval/main/mcd", trigger=trigger_eval),
     )
 
     trainer.extend(extensions.FailOnNonNumber(), trigger=trigger_log)
