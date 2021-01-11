@@ -1,9 +1,12 @@
 import argparse
 import re
+from glob import glob
 from pathlib import Path
 from typing import Optional
 
+import numpy
 import yaml
+from acoustic_feature_extractor.data.sampling_data import SamplingData
 from more_itertools import chunked
 from pytorch_trainer.dataset.convert import concat_examples
 from tqdm import tqdm
@@ -41,6 +44,8 @@ def generate(
     num_test: int,
     from_train_data: bool,
     time_second: float,
+    val_local_glob: str,
+    val_speaker_id: Optional[int],
     noise_schedule_start: float,
     noise_schedule_stop: float,
     noise_schedule_num: int,
@@ -68,7 +73,8 @@ def generate(
         use_gpu=use_gpu,
     )
 
-    local_padding_length = config.dataset.sampling_rate
+    local_padding_second = 1
+    local_padding_length = config.dataset.sampling_rate * local_padding_second
 
     config.dataset.sampling_length = int(config.dataset.sampling_rate * time_second)
     config.dataset.local_padding_length = local_padding_length
@@ -97,6 +103,41 @@ def generate(
         for wave, p in zip(output, wave_path):
             wave.save(output_dir / (p.stem + ".wav"))
 
+    # validation
+    if val_local_glob is not None:
+        local_paths = sorted([Path(p) for p in glob(val_local_glob)])
+        speaker_ids = [val_speaker_id] * len(local_paths)
+        for local_path, speaker_id in zip(
+            chunked(local_paths, batch_size), chunked(speaker_ids, batch_size)
+        ):
+            datas = [SamplingData.load(p) for p in local_path]
+            size = int((time_second + local_padding_second * 2) * datas[0].rate)
+            local = numpy.stack(
+                [
+                    (
+                        data.array[:size].T
+                        if len(data.array) >= size
+                        else numpy.pad(
+                            data.array,
+                            ((0, size - len(data.array)), (0, 0)),
+                            mode="edge",
+                        ).T
+                    )
+                    for data in datas
+                ]
+            )
+
+            output = generator.generate(
+                local=local,
+                local_padding_length=local_padding_length,
+                speaker_id=(
+                    numpy.stack(speaker_id) if speaker_id[0] is not None else None
+                ),
+            )
+
+            for wave, p in zip(output, local_path):
+                wave.save(output_dir / (p.stem + ".wav"))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -108,6 +149,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_test", type=int, default=10)
     parser.add_argument("--from_train_data", action="store_true")
     parser.add_argument("--time_second", type=float, default=1)
+    parser.add_argument("--val_local_glob")
+    parser.add_argument("--val_speaker_id", type=int)
     parser.add_argument("--noise_schedule_start", type=float, default=1e-4)
     parser.add_argument("--noise_schedule_stop", type=float, default=0.05)
     parser.add_argument("--noise_schedule_num", type=int, default=50)
