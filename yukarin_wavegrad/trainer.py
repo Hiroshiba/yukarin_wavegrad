@@ -145,10 +145,17 @@ def create_trainer(
     ext = extensions.Evaluator(eval_iter, generate_evaluator, device=device)
     trainer.extend(ext, name="eval", trigger=trigger_eval)
 
+    if config.train.stop_iteration is not None:
+        saving_model_num = int(
+            config.train.stop_iteration / config.train.eval_iteration / 10
+        )
+    else:
+        saving_model_num = 10
+
     ext = extensions.snapshot_object(
         predictor,
         filename="predictor_{.updater.iteration}.pth",
-        n_retains=5,
+        n_retains=saving_model_num,
     )
     trainer.extend(
         ext,
