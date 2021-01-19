@@ -127,6 +127,8 @@ def create_trainer(
 
     if config.train.multistep_shift is not None:
         trainer.extend(extensions.MultistepShift(**config.train.multistep_shift))
+    if config.train.step_shift is not None:
+        trainer.extend(extensions.StepShift(**config.train.step_shift))
 
     ext = extensions.Evaluator(test_iter, model, device=device)
     trainer.extend(ext, name="test", trigger=trigger_log)

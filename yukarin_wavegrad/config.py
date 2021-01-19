@@ -76,6 +76,7 @@ class TrainConfig:
     stop_iteration: int
     optimizer: Dict[str, Any]
     multistep_shift: Optional[Dict[str, Any]] = None
+    step_shift: Optional[Dict[str, Any]] = None
     num_processes: Optional[int] = None
     use_multithread: bool = False
     use_amp: Optional[bool] = None
