@@ -66,7 +66,7 @@ class Model(nn.Module):
             )
         )
 
-    def __call__(
+    def forward(
         self,
         wave: Tensor,
         local: Tensor,

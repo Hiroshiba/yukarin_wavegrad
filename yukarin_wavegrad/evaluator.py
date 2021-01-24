@@ -59,7 +59,7 @@ class GenerateEvaluator(nn.Module):
         self.generator = generator
         self.local_padding_time_second = local_padding_time_second
 
-    def __call__(
+    def forward(
         self,
         wave: Tensor,
         local: Tensor,
