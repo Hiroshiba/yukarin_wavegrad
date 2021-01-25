@@ -77,7 +77,9 @@ class Predictor(nn.Module):
 def create_predictor(config: NetworkConfig):
     with_encoder = config.encoding.layer_num > 0
 
-    condition_size = config.local_size + config.speaker_embedding_size
+    condition_size = (
+        config.local_size + config.speaker_embedding_size + config.latent_size
+    )
     encoded_size = config.encoding.hidden_size * 2 if with_encoder else condition_size
 
     encoder: Optional[nn.RNNBase] = None

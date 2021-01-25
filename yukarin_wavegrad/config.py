@@ -48,6 +48,7 @@ class DownsamplingNetworkConfig:
 class NetworkConfig:
     local_size: int
     scales: List[int]
+    latent_size: int
     speaker_size: int
     speaker_embedding_size: int
     encoding: EncodingNetworkConfig
@@ -64,6 +65,8 @@ class NoiseScheduleModelConfig:
 
 @dataclass
 class ModelConfig:
+    latent_size: int
+    sample_size: int
     noise_schedule: NoiseScheduleModelConfig
 
 
@@ -128,3 +131,12 @@ def backward_compatible(d: Dict[str, Any]):
 
     if "mulaw" not in d["dataset"]:
         d["dataset"]["mulaw"] = False
+
+    if "latent_size" not in d["network"]:
+        d["network"]["latent_size"] = 0
+    if "latent_size" not in d["model"]:
+        d["model"]["latent_size"] = 0
+    assert d["network"]["latent_size"] == d["model"]["latent_size"]
+
+    if "sample_size" not in d["model"]:
+        d["model"]["sample_size"] = 0

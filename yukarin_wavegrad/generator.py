@@ -25,6 +25,7 @@ class Generator(object):
         self.device = torch.device("cuda") if use_gpu else torch.device("cpu")
         self.scale = numpy.prod(config.network.scales, dtype=int)
         self.mulaw = config.dataset.mulaw
+        self.latent_size = config.model.latent_size
 
         if isinstance(predictor, Path):
             state_dict = torch.load(predictor)
@@ -48,6 +49,12 @@ class Generator(object):
     ):
         batsh_size = local.shape[0]
         length = local.shape[2] * self.scale - local_padding_length * 2
+
+        if self.latent_size > 0:
+            latent = self.predictor.generate_noise(
+                batsh_size, self.latent_size, local.shape[2]
+            )
+            local = torch.cat((local, latent), dim=1)
 
         wave = self.predictor.generate_noise(batsh_size, length)
         for i in tqdm(

@@ -1,7 +1,8 @@
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy
 import torch
+import torch.nn.functional as F
 from pytorch_trainer import report
 from torch import Tensor, nn
 
@@ -56,8 +57,6 @@ class Model(nn.Module):
         self.predictor = predictor
         self.local_padding_length = local_padding_length
 
-        self.l1_loss = nn.L1Loss()
-
         self.noise_scheduler = NoiseScheduler(
             NoiseScheduler.generate_noise_schedule(
                 start=model_config.noise_schedule.start,
@@ -66,17 +65,19 @@ class Model(nn.Module):
             )
         )
 
-    def forward(
+    def one_forward(
         self,
+        noise_level: Tensor,
+        noise: Tensor,
         wave: Tensor,
+        latent: Optional[Tensor],
         local: Tensor,
         speaker_id: Tensor = None,
     ):
-        batch_size = wave.shape[0]
-
-        noise_level = self.noise_scheduler.sample_noise_level(num=batch_size)
-        noise = self.predictor.generate_noise(*wave.shape)
         noised_wave = noise_level * wave + torch.sqrt(1 - noise_level ** 2) * noise
+
+        if latent is not None:
+            local = torch.cat((local, latent), dim=1)
 
         output = self.predictor(
             wave=noised_wave,
@@ -86,7 +87,85 @@ class Model(nn.Module):
             speaker_id=speaker_id,
         )
 
-        loss = self.l1_loss(output, noise)
+        loss = F.l1_loss(output, noise, reduction="none")
+        return loss
+
+    def forward(
+        self,
+        wave: Tensor,
+        local: Tensor,
+        speaker_id: Tensor = None,
+    ):
+        batch_size = wave.shape[0]
+        sample_size = self.model_config.sample_size
+        latent_size = self.model_config.latent_size
+
+        latent = None
+        if sample_size <= 1:
+            noise_level = self.noise_scheduler.sample_noise_level(num=batch_size)
+            noise = self.predictor.generate_noise(*wave.shape)
+            if latent_size > 0:
+                latent = self.predictor.generate_noise(
+                    batch_size, latent_size, local.shape[2]
+                )
+
+        else:
+            noise_level_list = []
+            noise_list = []
+            latent_list = []
+            for i_data in range(batch_size):
+                noise_level = self.noise_scheduler.sample_noise_level(num=sample_size)
+                noise = self.predictor.generate_noise((sample_size,) + wave.shape[1:])
+                if latent_size > 0:
+                    latent = self.predictor.generate_noise(
+                        sample_size, latent_size, local.shape[2]
+                    )
+
+                with torch.no_grad():
+                    loss = self.one_forward(
+                        noise_level=noise_level,
+                        noise=noise,
+                        wave=(
+                            wave[i_data]
+                            .unsqueeze(0)
+                            .expand((sample_size,) + wave.shape[1:])
+                        ),
+                        latent=latent,
+                        local=(
+                            local[i_data]
+                            .unsqueeze(0)
+                            .expand((sample_size,) + local.shape[1:])
+                        ),
+                        speaker_id=(
+                            (
+                                speaker_id[i_data]
+                                .unsqueeze(0)
+                                .expand((sample_size,) + speaker_id.shape[1:])
+                            )
+                            if speaker_id is not None
+                            else None
+                        ),
+                    )
+
+                i_sample = loss.mean(1).argmax(0)
+                noise_level_list.append(noise_level[i_sample])
+                noise_list.append(noise[i_sample])
+                if latent_size > 0:
+                    latent_list.append(latent[i_sample])
+
+            noise_level = torch.stack(noise_level_list)
+            noise = torch.stack(noise_list)
+            if latent_size > 0:
+                latent = torch.stack(latent_list)
+
+        loss = self.one_forward(
+            noise_level=noise_level,
+            noise=noise,
+            wave=wave,
+            latent=latent,
+            local=local,
+            speaker_id=speaker_id,
+        ).mean()
 
         # report
         values = dict(loss=loss)
