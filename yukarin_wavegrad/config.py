@@ -13,6 +13,7 @@ class DatasetConfig:
     input_silence_glob: str
     input_local_glob: Optional[str]
     mulaw: bool
+    local_sampling_rate: Optional[int]
     local_padding_length: int
     min_not_silence_length: int
     speaker_dict_path: Optional[str]
@@ -140,3 +141,6 @@ def backward_compatible(d: Dict[str, Any]):
 
     if "sample_size" not in d["model"]:
         d["model"]["sample_size"] = 0
+
+    if "local_sampling_rate" not in d["dataset"]:
+        d["dataset"]["local_sampling_rate"] = None

@@ -7,6 +7,6 @@ pytest
 pyyaml
 tensorboardX
 tensorboard
-wandb==0.10.9
+wandb
 git+https://github.com/Hiroshiba/pytorch-trainer@1.3.1
-git+https://github.com/Hiroshiba/acoustic_feature_extractor@7beb1ceb7244a997865778c3a7c730e5fc0cbe02
+git+https://github.com/Hiroshiba/acoustic_feature_extractor@db621adef6ef3899e113d34a890b55df75182bc2

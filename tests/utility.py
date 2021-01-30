@@ -42,6 +42,7 @@ def create_network_config(
     return NetworkConfig(
         local_size=local_size,
         scales=scales,
+        latent_size=0,
         speaker_size=speaker_size,
         speaker_embedding_size=4 if speaker_size > 0 else 0,
         encoding=EncodingNetworkConfig(
@@ -77,6 +78,7 @@ class SignWaveDataset(BaseWaveDataset):
     ):
         super().__init__(
             sampling_length=sampling_length,
+            local_sampling_rate=None,
             local_padding_length=0,
             min_not_silence_length=0,
             mulaw=mulaw,

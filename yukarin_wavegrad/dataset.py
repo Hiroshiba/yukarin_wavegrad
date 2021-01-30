@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import librosa
 import numpy
@@ -85,11 +85,13 @@ class BaseWaveDataset(Dataset):
     def __init__(
         self,
         sampling_length: int,
+        local_sampling_rate: Optional[int],
         local_padding_length: int,
         min_not_silence_length: int,
         mulaw: bool,
     ):
         self.sampling_length = sampling_length
+        self.local_sampling_rate = local_sampling_rate
         self.local_padding_length = local_padding_length
         self.min_not_silence_length = min_not_silence_length
         self.mulaw = mulaw
@@ -100,6 +102,7 @@ class BaseWaveDataset(Dataset):
         wave_data: Wave,
         silence_data: SamplingData,
         local_data: SamplingData,
+        local_sampling_rate: Optional[int],
         local_padding_length: int,
         min_not_silence_length: int,
         mulaw: bool,
@@ -113,10 +116,17 @@ class BaseWaveDataset(Dataset):
         sr = wave_data.sampling_rate
         sl = sampling_length
 
-        assert sr % local_data.rate == 0
-        l_scale = int(sr // local_data.rate)
+        if local_sampling_rate is None:
+            l_rate = local_data.rate
+            l_array = local_data.array
+        else:
+            l_rate = local_sampling_rate
+            l_array = local_data.resample(l_rate)
 
-        length = len(local_data.array) * l_scale
+        assert sr % l_rate == 0
+        l_scale = int(sr // l_rate)
+
+        length = len(l_array) * l_scale
         assert (
             abs(length - len(wave_data.wave)) < l_scale * 4
         ), f"{abs(length - len(wave_data.wave))} {l_scale}"
@@ -147,11 +157,9 @@ class BaseWaveDataset(Dataset):
         # local
         l_start, l_end = l_offset - l_pad, l_offset + l_sl + l_pad
         if l_start < 0 or l_end > l_length:
-            shape = list(local_data.array.shape)
+            shape = list(l_array.shape)
             shape[0] = l_sl + l_pad * 2
-            local = (
-                numpy.ones(shape=shape, dtype=local_data.array.dtype) * padding_value
-            )
+            local = numpy.ones(shape=shape, dtype=l_array.dtype) * padding_value
             if l_start < 0:
                 p_start = -l_start
                 l_start = 0
@@ -162,9 +170,9 @@ class BaseWaveDataset(Dataset):
                 l_end = l_length
             else:
                 p_end = l_sl + l_pad * 2
-            local[p_start:p_end] = local_data.array[l_start:l_end]
+            local[p_start:p_end] = l_array[l_start:l_end]
         else:
-            local = local_data.array[l_start:l_end]
+            local = l_array[l_start:l_end]
 
         return dict(
             wave=wave,
@@ -182,6 +190,7 @@ class BaseWaveDataset(Dataset):
             wave_data=wave_data,
             silence_data=silence_data,
             local_data=local_data,
+            local_sampling_rate=self.local_sampling_rate,
             local_padding_length=self.local_padding_length,
             min_not_silence_length=self.min_not_silence_length,
             mulaw=self.mulaw,
@@ -193,12 +202,14 @@ class WavesDataset(BaseWaveDataset):
         self,
         inputs: List[Union[Input, LazyInput]],
         sampling_length: int,
+        local_sampling_rate: Optional[int],
         local_padding_length: int,
         min_not_silence_length: int,
         mulaw: bool,
     ):
         super().__init__(
             sampling_length=sampling_length,
+            local_sampling_rate=local_sampling_rate,
             local_padding_length=local_padding_length,
             min_not_silence_length=min_not_silence_length,
             mulaw=mulaw,
@@ -305,6 +316,7 @@ def create_dataset(config: DatasetConfig):
         dataset = WavesDataset(
             inputs=inputs,
             sampling_length=sampling_length,
+            local_sampling_rate=config.local_sampling_rate,
             local_padding_length=local_padding_length,
             min_not_silence_length=config.min_not_silence_length,
             mulaw=config.mulaw,
