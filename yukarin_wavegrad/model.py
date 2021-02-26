@@ -100,47 +100,40 @@ class Model(nn.Module):
         sample_size = self.model_config.sample_size
         latent_size = self.model_config.latent_size
 
+        noise_level = self.noise_scheduler.sample_noise_level(num=batch_size)
+        noise = self.predictor.generate_noise(*wave.shape)
+
         latent = None
         if sample_size <= 1:
-            noise_level = self.noise_scheduler.sample_noise_level(num=batch_size)
-            noise = self.predictor.generate_noise(*wave.shape)
-            if latent_size > 0:
-                latent = self.predictor.generate_noise(
-                    batch_size, latent_size, local.shape[2]
-                )
+            assert latent_size == 0
 
         else:
-            noise_level_list = []
-            noise_list = []
+            assert latent_size > 0
+
             latent_list = []
             for i_data in range(batch_size):
-                noise_level = self.noise_scheduler.sample_noise_level(num=sample_size)
-                noise = self.predictor.generate_noise((sample_size,) + wave.shape[1:])
-                if latent_size > 0:
-                    latent = self.predictor.generate_noise(
-                        sample_size, latent_size, local.shape[2]
-                    )
+                latent = self.predictor.generate_noise(
+                    sample_size, latent_size, local.shape[2]
+                )
 
                 with torch.no_grad():
                     loss = self.one_forward(
-                        noise_level=noise_level,
-                        noise=noise,
-                        wave=(
-                            wave[i_data]
-                            .unsqueeze(0)
-                            .expand((sample_size,) + wave.shape[1:])
+                        noise_level=noise_level[i_data : i_data + 1].expand(
+                            (sample_size,) + noise_level.shape[1:]
+                        ),
+                        noise=noise[i_data : i_data + 1].expand(
+                            (sample_size,) + noise.shape[1:]
+                        ),
+                        wave=wave[i_data : i_data + 1].expand(
+                            (sample_size,) + wave.shape[1:]
                         ),
                         latent=latent,
-                        local=(
-                            local[i_data]
-                            .unsqueeze(0)
-                            .expand((sample_size,) + local.shape[1:])
+                        local=local[i_data : i_data + 1].expand(
+                            (sample_size,) + local.shape[1:]
                         ),
                         speaker_id=(
-                            (
-                                speaker_id[i_data]
-                                .unsqueeze(0)
-                                .expand((sample_size,) + speaker_id.shape[1:])
+                            speaker_id[i_data : i_data + 1].expand(
+                                (sample_size,) + speaker_id.shape[1:]
                             )
                             if speaker_id is not None
                             else None
@@ -148,15 +141,9 @@ class Model(nn.Module):
                     )
 
                 i_sample = loss.mean(1).argmax(0)
-                noise_level_list.append(noise_level[i_sample])
-                noise_list.append(noise[i_sample])
-                if latent_size > 0:
-                    latent_list.append(latent[i_sample])
+                latent_list.append(latent[i_sample])
 
-            noise_level = torch.stack(noise_level_list)
-            noise = torch.stack(noise_list)
-            if latent_size > 0:
-                latent = torch.stack(latent_list)
+            latent = torch.stack(latent_list)
 
         loss = self.one_forward(
             noise_level=noise_level,
